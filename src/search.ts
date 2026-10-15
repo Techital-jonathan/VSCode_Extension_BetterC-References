@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { guessAccess, isNamedArgument, isReadOnlyReference } from './syntax';
 
 export type Access = 'definition' | 'write' | 'read';
 
@@ -164,24 +165,28 @@ async function classifyFile(
       ? highlight.kind === vscode.DocumentHighlightKind.Write
         ? 'write'
         : 'read'
-      : guessAccess(line, location.range);
+      : location.range.isSingleLine
+        ? guessAccess(line, location.range.start.character, location.range.end.character)
+        : 'read';
 
-    if (access === 'read' && document && options.namedArgumentsAsWrite && isNamedArgument(document, location.range)) {
+    if (access === 'read' && document && options.namedArgumentsAsWrite && isNamedArgumentAt(document, location.range)) {
       return { ...base, access: 'write', heuristic, note: 'named argument' };
     }
-    if (access === 'write' && isReadOnlyReference(line, location.range)) {
+    if (access === 'write' && isReadOnlyReference(line.slice(0, location.range.start.character))) {
       return { ...base, access: 'read', heuristic, note: 'readonly reference' };
     }
     return { ...base, access, heuristic };
   });
 }
 
-/**
- * Roslyn counts every by-reference use as a write, including `ref readonly x = ref field` and
- * `in field` arguments, which cannot modify the value.
- */
-function isReadOnlyReference(line: string, range: vscode.Range): boolean {
-  return READONLY_REF_BEFORE.test(line.slice(0, range.start.character));
+function isNamedArgumentAt(document: vscode.TextDocument, range: vscode.Range): boolean {
+  if (!range.isSingleLine) {
+    return false;
+  }
+  const lookbackStart = new vscode.Position(Math.max(0, range.start.line - NAMED_ARGUMENT_LOOKBACK_LINES), 0);
+  const before = document.getText(new vscode.Range(lookbackStart, range.start));
+  const after = document.lineAt(range.end.line).text.slice(range.end.character);
+  return isNamedArgument(before, after);
 }
 
 async function getHighlights(uri: vscode.Uri, position: vscode.Position): Promise<vscode.DocumentHighlight[]> {
@@ -194,151 +199,12 @@ async function getHighlights(uri: vscode.Uri, position: vscode.Position): Promis
   }
 }
 
-/**
- * True for `Name` in `new Foo(Name: value)` / `Foo(Name: value)`. Roslyn reports it as a plain
- * reference to the parameter, but for positional records and primary constructors it is what sets
- * the property. Property patterns (`x is { Name: true }`) and ternaries (`c ? Name : other`) are not
- * matched: the name must start an argument, directly inside parentheses. Comments and string
- * literals between the arguments are ignored.
- */
-export function isNamedArgument(document: vscode.TextDocument, range: vscode.Range): boolean {
-  if (range.start.line !== range.end.line) {
-    return false;
-  }
-  const after = document.lineAt(range.end.line).text.slice(range.end.character);
-  if (!/^\s*:(?!:)/.test(after)) {
-    return false;
-  }
-
-  const lookbackStart = new vscode.Position(Math.max(0, range.start.line - NAMED_ARGUMENT_LOOKBACK_LINES), 0);
-  const before = maskCommentsAndStrings(document.getText(new vscode.Range(lookbackStart, range.start))).trimEnd();
-  const previous = before[before.length - 1];
-  if (previous !== '(' && previous !== ',') {
-    return false;
-  }
-
-  let depth = 0;
-  for (let i = before.length - 1; i >= 0; i--) {
-    const c = before[i];
-    if (c === ')' || c === '}' || c === ']') {
-      depth++;
-    } else if (c === '(' || c === '{' || c === '[') {
-      if (depth === 0) {
-        return c === '(';
-      }
-      depth--;
-    } else if (c === ';' && depth === 0) {
-      return false;
-    }
-  }
-  return false;
-}
-
-/** Replaces comments and string/char literals with spaces, so only code is left for bracket matching. */
-export function maskCommentsAndStrings(text: string): string {
-  const out = text.split('');
-  const blank = (from: number, to: number) => {
-    for (let k = from; k < to; k++) {
-      if (out[k] !== '\n') {
-        out[k] = ' ';
-      }
-    }
-  };
-  let i = 0;
-  while (i < text.length) {
-    const c = text[i];
-    let end = i + 1;
-    if (c === '/' && text[i + 1] === '/') {
-      const newline = text.indexOf('\n', i);
-      end = newline < 0 ? text.length : newline;
-    } else if (c === '/' && text[i + 1] === '*') {
-      const close = text.indexOf('*/', i + 2);
-      end = close < 0 ? text.length : close + 2;
-    } else if (c === '"' || c === "'") {
-      end = skipLiteral(text, i);
-    } else {
-      i++;
-      continue;
-    }
-    blank(i, end);
-    i = end;
-  }
-  return out.join('');
-}
-
-/** Index just past the string or char literal starting at `start` (regular, verbatim, interpolated, raw). */
-function skipLiteral(text: string, start: number): number {
-  const quote = text[start];
-  let verbatim = false;
-  let interpolated = false;
-  for (let p = start - 1; p >= 0 && (text[p] === '@' || text[p] === '$'); p--) {
-    verbatim ||= text[p] === '@';
-    interpolated ||= text[p] === '$';
-  }
-  if (quote === '"' && text.startsWith('"""', start)) {
-    let quotes = 0;
-    while (text[start + quotes] === '"') {
-      quotes++;
-    }
-    const close = text.indexOf('"'.repeat(quotes), start + quotes);
-    return close < 0 ? text.length : close + quotes;
-  }
-
-  let depth = 0;
-  let i = start + 1;
-  while (i < text.length) {
-    const c = text[i];
-    if (depth > 0) {
-      if (c === '"' || c === "'") {
-        i = skipLiteral(text, i);
-        continue;
-      }
-      depth += c === '{' ? 1 : c === '}' ? -1 : 0;
-      i++;
-    } else if (!verbatim && c === '\\') {
-      i += 2;
-    } else if (!verbatim && c === '\n') {
-      return i;
-    } else if (c === quote) {
-      if (verbatim && text[i + 1] === quote) {
-        i += 2;
-      } else {
-        return i + 1;
-      }
-    } else if (interpolated && c === '{') {
-      if (text[i + 1] === '{') {
-        i += 2;
-      } else {
-        depth = 1;
-        i++;
-      }
-    } else {
-      i++;
-    }
-  }
-  return i;
-}
-
 function isDefinition(location: vscode.Location, definitions: vscode.Location[]): boolean {
   return definitions.some(
     (d) =>
       d.uri.toString() === location.uri.toString() &&
       (d.range.contains(location.range.start) || location.range.contains(d.range.start)),
   );
-}
-
-const WRITE_AFTER = /^\s*(?:(?:\+|-|\*|\/|%|&|\||\^|<<|>>>?|\?\?)?=(?![=>])|\+\+|--)/;
-const WRITE_BEFORE = /(?:\+\+|--|\b(?:out|ref)\s+)\s*$/;
-const READONLY_REF_BEFORE = /(?:\bref\s+readonly\b[^;]*=\s*ref|[(,]\s*in)\s+$/;
-
-/** Fallback when the language server returns no highlights: look at the text around the reference. */
-export function guessAccess(line: string, range: vscode.Range): Access {
-  if (range.start.line !== range.end.line) {
-    return 'read';
-  }
-  const before = line.slice(0, range.start.character);
-  const after = line.slice(range.end.character);
-  return WRITE_AFTER.test(after) || WRITE_BEFORE.test(before) ? 'write' : 'read';
 }
 
 function compareReferences(a: Reference, b: Reference): number {
