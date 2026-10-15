@@ -1,0 +1,233 @@
+{
+  "name": "csharp-references-tree",
+  "displayName": "C# References Tree",
+  "description": "Find All References for C# with a collapsible folder tree and Read/Write grouping.",
+  "version": "0.3.0",
+  "publisher": "local",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:csharp"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "refsTree",
+          "title": "C# References",
+          "icon": "media/references.svg"
+        }
+      ]
+    },
+    "views": {
+      "refsTree": [
+        {
+          "id": "refsTree.results",
+          "name": "References",
+          "icon": "media/references.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "refsTree.find",
+        "title": "Find All References (Tree)",
+        "category": "C# References",
+        "icon": "$(references)"
+      },
+      {
+        "command": "refsTree.showAsTree",
+        "title": "View as Tree",
+        "category": "C# References",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "refsTree.showAsList",
+        "title": "View as List",
+        "category": "C# References",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "refsTree.groupByAccess",
+        "title": "Group by Read/Write",
+        "category": "C# References",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "refsTree.ungroupByAccess",
+        "title": "Don't Group by Read/Write",
+        "category": "C# References",
+        "icon": "$(ungroup-by-ref-type)"
+      },
+      {
+        "command": "refsTree.expandAll",
+        "title": "Expand All",
+        "category": "C# References",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "refsTree.refresh",
+        "title": "Rerun Search",
+        "category": "C# References",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "refsTree.clear",
+        "title": "Clear Results",
+        "category": "C# References",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "refsTree.remove",
+        "title": "Dismiss",
+        "category": "C# References",
+        "icon": "$(close)"
+      },
+      {
+        "command": "refsTree.copyPath",
+        "title": "Copy Path",
+        "category": "C# References"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "refsTree.showAsList",
+          "when": "view == refsTree.results && refsTree.viewMode == tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "refsTree.showAsTree",
+          "when": "view == refsTree.results && refsTree.viewMode == list",
+          "group": "navigation@1"
+        },
+        {
+          "command": "refsTree.groupByAccess",
+          "when": "view == refsTree.results && !refsTree.groupByAccess",
+          "group": "navigation@2"
+        },
+        {
+          "command": "refsTree.ungroupByAccess",
+          "when": "view == refsTree.results && refsTree.groupByAccess",
+          "group": "navigation@2"
+        },
+        {
+          "command": "refsTree.expandAll",
+          "when": "view == refsTree.results && refsTree.hasResults",
+          "group": "navigation@3"
+        },
+        {
+          "command": "refsTree.refresh",
+          "when": "view == refsTree.results && refsTree.hasResults",
+          "group": "navigation@4"
+        },
+        {
+          "command": "refsTree.clear",
+          "when": "view == refsTree.results && refsTree.hasResults",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "refsTree.remove",
+          "when": "view == refsTree.results && viewItem =~ /^(reference|file|folder|group)$/",
+          "group": "inline"
+        },
+        {
+          "command": "refsTree.remove",
+          "when": "view == refsTree.results && viewItem =~ /^(reference|file|folder|group)$/",
+          "group": "1_modify"
+        },
+        {
+          "command": "refsTree.copyPath",
+          "when": "view == refsTree.results && viewItem =~ /^(reference|file|folder)$/",
+          "group": "2_copy"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "refsTree.find",
+          "when": "editorLangId == csharp",
+          "group": "0_navigation@99"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "refsTree.find",
+          "when": "editorLangId == csharp"
+        },
+        {
+          "command": "refsTree.remove",
+          "when": "false"
+        },
+        {
+          "command": "refsTree.copyPath",
+          "when": "false"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "refsTree.find",
+        "key": "shift+alt+f12",
+        "when": "editorTextFocus && editorLangId == csharp"
+      }
+    ],
+    "configuration": {
+      "title": "C# References Tree",
+      "properties": {
+        "refsTree.defaultViewMode": {
+          "type": "string",
+          "enum": [
+            "tree",
+            "list"
+          ],
+          "default": "tree",
+          "description": "How files are shown the first time: as a folder tree or as a flat list. Toggling in the view is remembered."
+        },
+        "refsTree.defaultGroupByAccess": {
+          "type": "boolean",
+          "default": true,
+          "description": "Group references into Definition / Write / Read the first time. Toggling in the view is remembered."
+        },
+        "refsTree.compactFolders": {
+          "type": "boolean",
+          "default": true,
+          "description": "Join folder chains that only contain a single sub-folder into one node (e.g. src/Core/Services)."
+        },
+        "refsTree.namedArgumentsAsWrite": {
+          "type": "boolean",
+          "default": true,
+          "description": "Count named arguments like `new PartDto(InStock: value)` as writes. Roslyn reports them as plain references to the constructor parameter, but for records and primary constructors they set the property."
+        },
+        "refsTree.autoExpandLimit": {
+          "type": "number",
+          "default": 250,
+          "description": "Expand files automatically when the result has at most this many references. Above it, files start collapsed."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "test": "npm run compile && node ./out/test/runTest.js",
+    "package": "vsce package --allow-missing-repository --skip-license --out csharp-references-tree.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.90.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "typescript": "~5.9.3"
+  }
+}
