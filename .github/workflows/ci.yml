@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - run: npm ci
+
+      - run: npm run compile
+
+      - name: Unit tests
+        run: node --test "out/test/unit/**/*.test.js"
+
+      - name: Build sample C# project
+        run: dotnet build test-fixtures/Sample
+
+      - name: Integration tests (real VS Code + C# extension)
+        run: xvfb-run -a node ./out/test/runTest.js
+        env:
+          VSCODE_EXTENSIONS_DIR: ${{ github.workspace }}/.vscode-test/ci-extensions
+
+      - name: Package
+        run: npx vsce package --out better-csharp-references.vsix
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vsix
+          path: better-csharp-references.vsix

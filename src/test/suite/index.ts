@@ -17,7 +17,7 @@ export async function run(): Promise<void> {
   assert.ok(csharp, 'The C# extension (ms-dotnettools.csharp) must be installed');
   await csharp.activate();
 
-  const ours = vscode.extensions.getExtension<RefsTreeApi>('local.csharp-references-tree');
+  const ours = vscode.extensions.getExtension<RefsTreeApi>('techital.better-csharp-references');
   assert.ok(ours, 'Extension under test not found');
   const api = await ours.activate();
 

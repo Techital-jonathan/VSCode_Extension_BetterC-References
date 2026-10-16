@@ -1,11 +1,19 @@
 {
-  "name": "csharp-references-tree",
-  "displayName": "C# References Tree",
-  "description": "Find All References for C# with a collapsible folder tree and Read/Write grouping.",
-  "version": "0.3.0",
-  "publisher": "local",
-  "license": "UNLICENSED",
-  "private": true,
+  "name": "better-csharp-references",
+  "displayName": "Better C# References",
+  "description": "Find All References for C# as a collapsible folder tree, grouped into Definition / Write / Read.",
+  "version": "1.0.0",
+  "publisher": "techital",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Techital-jonathan/VSCode_Extension_BetterC-References.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Techital-jonathan/VSCode_Extension_BetterC-References/issues"
+  },
+  "homepage": "https://github.com/Techital-jonathan/VSCode_Extension_BetterC-References#readme",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -13,6 +21,26 @@
     "Programming Languages",
     "Other"
   ],
+  "keywords": [
+    "c#",
+    "csharp",
+    "dotnet",
+    "references",
+    "find all references",
+    "read write",
+    "roslyn",
+    "tree"
+  ],
+  "galleryBanner": {
+    "color": "#24273A",
+    "theme": "dark"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
   "main": "./out/extension.js",
   "activationEvents": [
     "onLanguage:csharp"
@@ -178,12 +206,17 @@
       {
         "command": "refsTree.find",
         "key": "shift+alt+f12",
-        "when": "editorTextFocus && editorLangId == csharp"
+        "when": "editorTextFocus && editorLangId == csharp && config.refsTree.replaceFindAllReferences"
       }
     ],
     "configuration": {
-      "title": "C# References Tree",
+      "title": "Better C# References",
       "properties": {
+        "refsTree.replaceFindAllReferences": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Use `Shift+Alt+F12` (Find All References) for this extension in C# files, instead of VS Code's built-in References view. Turn off to keep the built-in behavior; the command stays available in the editor context menu and Command Palette."
+        },
         "refsTree.defaultViewMode": {
           "type": "string",
           "enum": [
@@ -221,7 +254,9 @@
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run compile",
     "test": "npm run compile && node ./out/test/runTest.js",
-    "package": "vsce package --allow-missing-repository --skip-license --out csharp-references-tree.vsix"
+    "package": "vsce package --out better-csharp-references.vsix",
+    "test:unit": "npm run compile && node --test \"out/test/unit/**/*.test.js\"",
+    "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

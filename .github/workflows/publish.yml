@@ -1,0 +1,52 @@
+name: Publish
+
+# Push a tag matching the package.json version (e.g. v1.0.0) to publish to the
+# VS Code Marketplace and create a GitHub release with the .vsix attached.
+# Needs the repository secret VSCE_PAT (Azure DevOps PAT, Marketplace > Manage).
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check tag matches package.json version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${version}" >&2
+            exit 1
+          fi
+
+      - name: Package
+        run: npx vsce package --out better-csharp-references.vsix
+
+      - name: Publish to the VS Code Marketplace
+        run: npx vsce publish --packagePath better-csharp-references.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Create GitHub release
+        run: gh release create "${GITHUB_REF_NAME}" better-csharp-references.vsix --title "${GITHUB_REF_NAME}" --notes "See [CHANGELOG.md](CHANGELOG.md)."
+        env:
+          GH_TOKEN: ${{ github.token }}
